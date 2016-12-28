@@ -1,87 +1,78 @@
+#install.packages("dplyr")
+## load dplyr package to cobine data tables
+library(dplyr)
+
 #Download file and place the ZIP file into data directory
-
-if(!file.exists("./data")){dir.create("./data")}
 fileUrl <- "https://d396qusza40orc.cloudfront.net/getdata%2Fprojectfiles%2FUCI%20HAR%20Dataset.zip"
-download.file(fileUrl,destfile="./data/Dataset.zip",method="curl")
 
-#unzip
-unzip(zipfile="./data/Dataset.zip",exdir="./data")
+# destination filename, will automatically save to current directory
+filename <- "getdata_dataset.zip"
 
-#get the list of the files
-path_rf <- file.path("./data" , "UCI HAR Dataset")
-files<-list.files(path_rf, recursive=TRUE)
-files
-
-#read data
-#initiate variables
-dataActivityTest  <- read.table(file.path(path_rf, "test" , "Y_test.txt" ),header = FALSE)
-dataActivityTrain <- read.table(file.path(path_rf, "train", "Y_train.txt"),header = FALSE)
-dataSubjectTrain <- read.table(file.path(path_rf, "train", "subject_train.txt"),header = FALSE)
-dataSubjectTest  <- read.table(file.path(path_rf, "test" , "subject_test.txt"),header = FALSE)
-dataFeaturesTest  <- read.table(file.path(path_rf, "test" , "X_test.txt" ),header = FALSE)
-dataFeaturesTrain <- read.table(file.path(path_rf, "train", "X_train.txt"),header = FALSE)
-
-#properties of the varibles. check them
-str(dataActivityTest)
-str(dataActivityTrain)
-str(dataSubjectTrain)
-str(dataSubjectTest)
-str(dataFeaturesTest)
-str(dataFeaturesTrain)
+# Download and unzip the dataset.
+if (!file.exists(filename)){# check if file existed already and delete it then retrieve it
+  
+  download.file(fileURL, filename)
+  unzip(filename, overwrite = TRUE) 
+  
+}else {
+  
+  file.remove(filename)
+  download.file(fileURL, filename)
+  unzip(filename, overwrite = TRUE)
+  
+}
 
 #
 #
 #1.Merges the training and the test sets to create one data set
 #
 #
-dataSubject <- rbind(dataSubjectTrain, dataSubjectTest)
-dataActivity<- rbind(dataActivityTrain, dataActivityTest)
-dataFeatures<- rbind(dataFeaturesTrain, dataFeaturesTest)
-names(dataSubject)<-c("subject")
-names(dataActivity)<- c("activity")
-dataFeaturesNames <- read.table(file.path(path_rf, "features.txt"),head=FALSE)
-names(dataFeatures)<- dataFeaturesNames$V2
-dataCombine <- cbind(dataSubject, dataActivity)
-Data <- cbind(dataFeatures, dataCombine)
+features <- read.table("UCI HAR Dataset/features.txt")
+features[,2] <- as.character(features[,2])
+filter <- grep(".*mean.*|.*std.*", features[,2])
+filter.names <- features[filter,2]
+filter.names = gsub('-mean', 'Mean', filter.names)
+filter.names = gsub('-std', 'Std', filter.names)
+filter.names <- gsub('[-()]', '', filter.names)
+x_train <- read.table("UCI HAR Dataset/train/X_train.txt")[filter]
+x_test <- read.table("UCI HAR Dataset/test/X_test.txt")[filter]
+x_data <- rbind(x_train, x_test)
 
 #
 #
 #2. Extracts only the measurements on the mean and standard deviation for each measurement
 #
 #
-subdataFeaturesNames<-dataFeaturesNames$V2[grep("mean\\(\\)|std\\(\\)", dataFeaturesNames$V2)]
-selectedNames<-c(as.character(subdataFeaturesNames), "subject", "activity" )
-Data<-subset(Data,select=selectedNames)
-str(Data)
+y_train <- read.table("UCI HAR Dataset/train/y_train.txt")
+y_test <- read.table("UCI HAR Dataset/test/y_test.txt")
+y_data <- rbind(y_train, y_test)
+activities <- read.table("UCI HAR Dataset/activity_labels.txt")
+y_data[, 1] <- activities[y_data[, 1], 2]
+names(y_data) <- "activity"
+
+
 
 #
 #
 #3.Uses descriptive activity names to name the activities in the data set
 #
 #
-activityLabels <- read.table(file.path(path_rf, "activity_labels.txt"),header = FALSE)
-head(Data$activity,30)
+subject_train <- read.table("UCI HAR Dataset/train/subject_train.txt")
+subject_test <- read.table("UCI HAR Dataset/test/subject_test.txt")
+subject_data <- rbind(subject_train, subject_test)
+names(subject_data) <- "subject"
 #
 #
 #4. Appropriately labels the data set with descriptive variable names
 #
 #
-names(Data)<-gsub("^t", "time", names(Data))
-names(Data)<-gsub("^f", "frequency", names(Data))
-names(Data)<-gsub("Acc", "Accelerometer", names(Data))
-names(Data)<-gsub("Gyro", "Gyroscope", names(Data))
-names(Data)<-gsub("Mag", "Magnitude", names(Data))
-names(Data)<-gsub("BodyBody", "Body", names(Data))
-names(Data)
+combined_data <- cbind(subject_data, y_data, x_data)
+colnames(combined_data) <- c("subject", "activity", filter.names)
 
 #
 #
 #5. Creates a second,independent tidy data set and ouput it
 #
 #
-library(plyr);
-Data2<-aggregate(. ~subject + activity, Data, mean)
-Data2<-Data2[order(Data2$subject,Data2$activity),]
-write.table(Data2, file = "tidydata.txt",row.name=FALSE)
-library(knitr)
-knit2html("codebook.Rmd");
+tidy_data <- ddply(combined_data, .(subject, activity), function(x) colMeans(x[, 3:68]))
+write.table(tidy_data, "tidy_data.txt", row.name=FALSE)
