@@ -9,7 +9,7 @@ A full description of the data used in this project can be found at https://d396
 
 The script run_analysis.R performs the 5 steps described in the course project's definition.
 
-1.Merges the training and the test sets to create one data set
+#1.Merges the training and the test sets to create one data set
 
 features <- read.table("UCI HAR Dataset/features.txt")
 features[,2] <- as.character(features[,2])
